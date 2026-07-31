@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#454c32">
+  <meta name="description" content="Reserva tu Day Pass en El Oasis Villa Resort, L'Eliana, Valencia.">
+  <title>El Oasis Day Pass</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="El Oasis Day Pass">
+        <img src="./oasis-logo.jpg" alt="El Oasis Villa Resort">
+      </a>
+      <a class="header-cta" href="#reservar">Reservar Day Pass</a>
+    </header>
+
+    <section class="hero" id="inicio">
+      <div class="hero-glow"></div>
+      <div class="hero-content">
+        <p class="eyebrow">L’Eliana · Valencia</p>
+        <h1>Un día entero para bajar el ritmo.</h1>
+        <p class="hero-copy">Piscinas, jacuzzi exterior, jardines, tumbonas y el ambiente tranquilo de El Oasis. De 10:00 a 19:00.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#reservar">Calcula y reserva</a>
+          <a class="button button-ghost" href="https://photos.app.goo.gl/51DEqzsyEASvLiyE8" target="_blank" rel="noreferrer">Ver fotos reales</a>
+        </div>
+      </div>
+      <div class="hero-card">
+        <span class="sun">☀</span>
+        <p>DAY PASS</p>
+        <strong>10 — 19 h</strong>
+        <small>Dos piscinas · jacuzzi · jardines</small>
+      </div>
+    </section>
+
+    <section class="experience">
+      <div>
+        <p class="eyebrow">La experiencia</p>
+        <h2>Tu rincón de verano, sin salir de Valencia</h2>
+      </div>
+      <div class="features">
+        <article><span>01</span><h3>Agua y descanso</h3><p>Piscinas, jacuzzi exterior, tumbonas y zonas comunes ajardinadas.</p></article>
+        <article><span>02</span><h3>FESTA incluida</h3><p>Cada adulto disfruta de una cesta de snacks y bebidas valorada en 10 €.</p></article>
+        <article><span>03</span><h3>A tu manera</h3><p>Añade carpa, mesa preparada en cenador, paella o menú de piscina.</p></article>
+      </div>
+    </section>
+
+    <section class="booking-section" id="reservar">
+      <div class="booking-heading">
+        <p class="eyebrow">Reserva online</p>
+        <h2>Diseña tu día en El Oasis</h2>
+        <p>El precio se actualiza mientras eliges. La reserva se confirma tras verificar el pago.</p>
+      </div>
+
+      <form class="booking-grid" id="booking-form">
+        <div class="builder">
+          <fieldset>
+            <legend><b>1</b> Fecha y llegada</legend>
+            <label class="field">Fecha
+              <input id="date" name="date" type="date" required>
+            </label>
+            <div class="field">
+              <span>Hora de entrada</span>
+              <div class="slot-grid" id="entry-slots">
+                <button type="button" class="slot selected" data-entry="10:00">10:00</button>
+                <button type="button" class="slot" data-entry="10:15">10:15</button>
+                <button type="button" class="slot" data-entry="10:30">10:30</button>
+                <button type="button" class="slot" data-entry="10:45">10:45</button>
+                <button type="button" class="slot" data-entry="11:00">11:00</button>
+                <button type="button" class="slot" data-entry="11:15">11:15</button>
+                <button type="button" class="slot" data-entry="11:30">11:30</button>
+                <button type="button" class="slot" data-entry="12:00">12:00</button>
+                <button type="button" class="slot" data-entry="Después de las 12:00">Después de las 12:00</button>
+              </div>
+              <label class="late-time hidden" id="late-time-wrap">Hora solicitada
+                <input id="late-time" type="time" min="12:01">
+              </label>
+              <small>Las llegadas posteriores a las 12:00 necesitan confirmación expresa.</small>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend><b>2</b> Personas</legend>
+            <div class="counter-row">
+              <div><strong>Adultos</strong><span>29 € acceso + 10 € FESTA</span></div>
+              <div class="counter" data-counter="adults">
+                <button type="button" data-step="-1" aria-label="Restar un adulto">−</button>
+                <output id="adults-output">2</output>
+                <button type="button" data-step="1" aria-label="Añadir un adulto">+</button>
+              </div>
+            </div>
+            <div class="counter-row">
+              <div><strong>Niños hasta 12 años</strong><span>29 € por niño</span></div>
+              <div class="counter" data-counter="children">
+                <button type="button" data-step="-1" aria-label="Restar un niño">−</button>
+                <output id="children-output">0</output>
+                <button type="button" data-step="1" aria-label="Añadir un niño">+</button>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend><b>3</b> Elige tu carpa</legend>
+            <p class="fieldset-copy">Consulta el plano completo y selecciona una de las carpas disponibles.</p>
+            <div class="plan-wrap">
+              <iframe title="Plano oficial de carpas de El Oasis" src="https://drive.google.com/file/d/1PzJhLO-6b-y9HKopOb7KcFhBPaTkYToG/preview" loading="lazy"></iframe>
+            </div>
+            <a class="text-link" href="https://drive.google.com/file/d/1PzJhLO-6b-y9HKopOb7KcFhBPaTkYToG/view?usp=sharing" target="_blank" rel="noreferrer">Abrir el plano a pantalla completa ↗</a>
+            <div class="tent-picker" id="tent-picker" role="radiogroup" aria-label="Selección de carpa">
+              <button type="button" role="radio" aria-checked="true" class="tent selected" data-tent="none"><span class="tent-shape">○</span><strong>Sin carpa</strong><small>0 €</small></button>
+              <button type="button" role="radio" aria-checked="false" class="tent" data-tent="C9"><span class="tent-shape">⌂</span><strong>Carpa 9</strong><small>+30 € · 4 × 3 m</small></button>
+              <button type="button" role="radio" aria-checked="false" class="tent" data-tent="C10"><span class="tent-shape">⌂</span><strong>Carpa 10</strong><small>+30 € · 4 × 3 m</small></button>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend><b>4</b> Completa la experiencia</legend>
+            <label class="option" id="gazebo-option">
+              <input id="gazebo" type="checkbox">
+              <span><strong>Mesa preparada en cenador</strong><small>Mesa preparada para vuestro grupo en el cenador · 9 € por persona.</small></span>
+              <b id="gazebo-price">+18 €</b>
+            </label>
+
+            <div class="paella-builder" id="paella-builder">
+              <div class="paella-heading">
+                <div><strong>Paellas por encargo</strong><small>Reserva con 24 horas de antelación. Mínimo facturable: 4 raciones por tipo de paella.</small></div>
+                <button type="button" class="paella-toggle" id="paella-toggle">Añadir</button>
+              </div>
+              <div class="paella-details hidden" id="paella-details">
+                <div class="paella-options" id="paella-options" role="radiogroup" aria-label="Tipo de paella">
+                  <button type="button" role="radio" aria-checked="true" class="paella-choice selected" data-paella="valenciana"><span>Paella Valenciana con pollo y conejo</span><b>17 € / ración</b><small>4 personas: 68 €</small></button>
+                  <button type="button" role="radio" aria-checked="false" class="paella-choice" data-paella="marisco"><span>Paella de marisco</span><b>20 € / ración</b><small>4 personas: 80 €</small></button>
+                  <button type="button" role="radio" aria-checked="false" class="paella-choice" data-paella="verduras"><span>Paella de verduras</span><b>17 € / ración</b><small>4 personas: 68 €</small></button>
+                  <button type="button" role="radio" aria-checked="false" class="paella-choice" data-paella="bogavante"><span>Paella de bogavante</span><b>24 € / ración</b><small>4 personas: 96 €</small></button>
+                </div>
+                <div class="paella-servings">
+                  <div><strong>Número de raciones</strong><small id="paella-minimum-note">Aunque sois 2, se aplica el mínimo de 4 raciones.</small></div>
+                  <div class="counter" data-counter="paellaServings">
+                    <button type="button" data-step="-1" aria-label="Restar una ración">−</button>
+                    <output id="paella-servings-output">4</output>
+                    <button type="button" data-step="1" aria-label="Añadir una ración">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="service-links">
+              <a href="https://bit.ly/3saX2jb" target="_blank" rel="noreferrer">Ver paellas y menú de piscina ↗</a>
+              <a href="https://bit.ly/OasisWellnessMasajes" target="_blank" rel="noreferrer">Ver masajes ↗</a>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend><b>5</b> Tus datos</legend>
+            <div class="two-cols">
+              <label class="field">Nombre y apellidos<input id="name" name="name" autocomplete="name" required></label>
+              <label class="field">Teléfono<input id="phone" name="phone" type="tel" autocomplete="tel" required></label>
+            </div>
+            <label class="field">Email (opcional)<input id="email" name="email" type="email" autocomplete="email"></label>
+            <label class="field hidden" id="dietary-wrap">Preferencias o intolerancias<textarea id="dietary-notes" name="dietaryNotes" rows="3"></textarea></label>
+            <label class="consent"><input type="checkbox" required><span>Acepto que El Oasis use estos datos para gestionar mi solicitud y confirmarme la reserva.</span></label>
+          </fieldset>
+        </div>
+
+        <aside class="summary">
+          <p class="eyebrow">Tu Day Pass</p>
+          <h3>Resumen</h3>
+          <div id="summary-rows"></div>
+          <div class="summary-total"><span>Total calculado</span><strong id="total-output">78 €</strong></div>
+          <p class="summary-note">Las paellas se calculan con un mínimo de 4 raciones y deben solicitarse con 24 horas de antelación.</p>
+          <button class="reserve-button" type="submit">Registrar y enviar por WhatsApp</button>
+          <a class="rules" href="https://bit.ly/normasInternaDaypass" target="_blank" rel="noreferrer">Consultar normas internas</a>
+        </aside>
+      </form>
+
+      <p class="form-error hidden" id="form-error" role="alert"></p>
+
+      <section class="confirmation hidden" id="confirmation">
+        <span>✓</span>
+        <div>
+          <p class="eyebrow">Solicitud preparada</p>
+          <h2>Referencia <span id="reference-output"></span></h2>
+          <p>Tu plaza todavía no está confirmada. Realiza la transferencia y envía el justificante a El Oasis para que podamos verificarla.</p>
+          <div class="bank">
+            <p><b>Beneficiario</b> residencial el oasis sa</p>
+            <p><b>IBAN</b> ES66 0081 1301 2200 0113 8922</p>
+            <p><b>BIC/SWIFT</b> BSABESBB</p>
+            <p><b>Banco</b> Banco Sabadell</p>
+            <p><b>Importe</b> <span id="payment-total"></span></p>
+            <p><b>Concepto</b> <span id="payment-reference"></span></p>
+          </div>
+          <a class="whatsapp-button" id="whatsapp-link" href="#" target="_blank" rel="noreferrer">Enviar pedido completo por WhatsApp</a>
+          <p class="arrival-note">Acceso por la puerta principal, en la rotonda del Lidl. La puerta estará cerrada y una persona os esperará en punto a la hora confirmada.</p>
+        </div>
+      </section>
+    </section>
+
+    <footer><span>EL OASIS VILLA RESORT</span><p>L’Eliana · Valencia</p><a href="https://www.el-oasis.com/" target="_blank" rel="noreferrer">el-oasis.com</a></footer>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>
