@@ -78,7 +78,8 @@
               <label class="late-time hidden" id="late-time-wrap">Hora solicitada
                 <input id="late-time" type="time" min="12:01">
               </label>
-              <small>Las llegadas posteriores a las 12:00 necesitan confirmación expresa.</small>\n              <div class="time-notice"><strong>La hora reservada es estricta.</strong><span>Una persona os esperará en la puerta exactamente a la hora confirmada. Si vais a llegar tarde, avisadnos antes. Si no habéis avisado, tendréis que llamarnos para que os asignemos una nueva hora de entrada.</span></div>
+              <small>Las llegadas posteriores a las 12:00 necesitan confirmación expresa.</small>
+              <div class="time-notice"><strong>La hora reservada es estricta.</strong><span>Una persona os esperará en la puerta exactamente a la hora confirmada. Si vais a llegar tarde, avisadnos antes. Si no habéis avisado, tendréis que llamarnos para que os asignemos una nueva hora de entrada.</span></div>
             </div>
           </fieldset>
 
@@ -155,11 +156,16 @@
           <fieldset>
             <legend><b>5</b> Tus datos</legend>
             <div class="two-cols">
-              <label class="field">Nombre y apellidos<input id="name" name="name" autocomplete="name" required></label>
-              <label class="field">Teléfono<input id="phone" name="phone" type="tel" autocomplete="tel" required></label>
+              <label class="field">Nombre<input id="first-name" name="firstName" autocomplete="given-name" required></label>
+              <label class="field">Apellidos<input id="last-name" name="lastName" autocomplete="family-name" required></label>
             </div>
-            <label class="field">Email (opcional)<input id="email" name="email" type="email" autocomplete="email"></label>
-            <label class="field hidden" id="dietary-wrap">Preferencias o intolerancias<textarea id="dietary-notes" name="dietaryNotes" rows="3"></textarea></label>
+            <div class="two-cols">
+              <label class="field">Teléfono<input id="phone" name="phone" type="tel" autocomplete="tel" required></label>
+              <label class="field">Email (opcional)<input id="email" name="email" type="email" autocomplete="email"></label>
+            </div>
+            <label class="field">Información adicional (opcional)
+              <textarea id="additional-info" name="additionalInfo" rows="4" placeholder="Indica alergias, intolerancias o cualquier requisito especial que debamos tener en cuenta."></textarea>
+            </label>
             <label class="consent"><input type="checkbox" required><span>Acepto que El Oasis use estos datos para gestionar mi solicitud y confirmarme la reserva.</span></label>
           </fieldset>
         </div>
