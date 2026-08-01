@@ -110,7 +110,6 @@ $("#paella-toggle").addEventListener("click", () => {
   state.paellaType = adding ? "valenciana" : "none";
   normalizePaellaServings();
   $("#paella-details").classList.toggle("hidden", !adding);
-  $("#dietary-wrap").classList.toggle("hidden", !adding);
   $("#paella-toggle").textContent = adding ? "Quitar" : "Añadir";
   $("#paella-toggle").classList.toggle("active", adding);
   render();
@@ -151,15 +150,17 @@ $("#booking-form").addEventListener("submit", (event) => {
   const selected = PAELLAS[state.paellaType];
   const amount = totals();
   const entryTime = state.entry === "Después de las 12:00" ? lateTime : state.entry;
-  const name = $("#name").value.trim();
+  const firstName = $("#first-name").value.trim();
+  const lastName = $("#last-name").value.trim();
   const phone = $("#phone").value.trim();
   const email = $("#email").value.trim();
-  const dietaryNotes = $("#dietary-notes").value.trim();
+  const additionalInfo = $("#additional-info").value.trim();
 
   const whatsappText = [
     "NUEVO PEDIDO DAY PASS — WEB",
     `Referencia: ${reference}`,
-    `Nombre: ${name}`,
+    `Nombre: ${firstName}`,
+    `Apellidos: ${lastName}`,
     `Teléfono: ${phone}`,
     email ? `Email: ${email}` : null,
     `Fecha: ${$("#date").value}`,
@@ -168,7 +169,7 @@ $("#booking-form").addEventListener("submit", (event) => {
     `Carpa: ${state.tent === "none" ? "Sin carpa" : state.tent}`,
     `Mesa preparada en cenador: ${state.gazebo ? `Sí — ${people()} × 9 € = ${amount.gazebo} €` : "No"}`,
     selected ? `Paella: ${selected.name} — ${state.paellaServings} raciones × ${selected.price} € = ${amount.paella} €` : "Paella: No",
-    dietaryNotes ? `Preferencias o intolerancias: ${dietaryNotes}` : null,
+    additionalInfo ? `Información adicional: ${additionalInfo}` : null,
     `TOTAL: ${amount.total} €`,
     "Estado: pendiente de verificación del pago"
   ].filter(Boolean).join("\n");
