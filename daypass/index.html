@@ -176,7 +176,9 @@
           <div id="summary-rows"></div>
           <div class="summary-total"><span>Total calculado</span><strong id="total-output">78 €</strong></div>
           <p class="summary-note">Las paellas se calculan con un mínimo de 4 raciones y deben solicitarse con 24 horas de antelación.</p>
-          <button class="reserve-button" type="submit">Registrar y enviar por WhatsApp</button>
+          <button class="reserve-button" id="card-payment-button" type="submit">Pagar con tarjeta</button>
+          <button class="manual-transfer-button" id="manual-transfer-button" type="button">Usar transferencia y WhatsApp</button>
+          <p class="secure-payment-note">Pago seguro procesado por Stripe.</p>
           <a class="rules" href="https://bit.ly/normasInternaDaypass" target="_blank" rel="noreferrer">Consultar normas internas</a>
         </aside>
       </form>
@@ -199,6 +201,15 @@
           </div>
           <a class="whatsapp-button" id="whatsapp-link" href="#" target="_blank" rel="noreferrer">Enviar pedido completo por WhatsApp</a>
           <p class="arrival-note"><strong>La hora reservada es estricta.</strong> Acceso por la puerta principal, en la rotonda del Lidl. Una persona os esperará exactamente a la hora confirmada. Si vais a llegar tarde, avisadnos antes. Si no habéis avisado, tendréis que llamarnos para que os asignemos una nueva hora de entrada.</p>
+        </div>
+      </section>
+
+      <section class="confirmation hidden" id="payment-confirmation" role="status">
+        <span>✓</span>
+        <div>
+          <p class="eyebrow">Pago confirmado</p>
+          <h2>Tu reserva está pagada y confirmada.</h2>
+          <p>Referencia <strong id="paid-reference-output"></strong>. Stripe ha confirmado el pago con tarjeta y El Oasis ha registrado el importe recibido.</p>
         </div>
       </section>
     </section>
