@@ -5,6 +5,8 @@ const PAELLAS = {
   bogavante: { name: "Paella de bogavante", price: 24 }
 };
 
+const STRIPE_WORKER_URL = "https://oasis-daypass-stripe-live.infooasisresort.workers.dev";
+
 const state = {
   adults: 2,
   children: 0,
@@ -129,8 +131,9 @@ $$("[data-paella]").forEach((button) => {
 
 $("#date").min = new Date().toISOString().slice(0, 10);
 
-$("#booking-form").addEventListener("submit", (event) => {
+function prepareManualTransfer(event) {
   event.preventDefault();
+  if (!$("#booking-form").reportValidity()) return;
   const error = $("#form-error");
   error.classList.add("hidden");
 
@@ -182,6 +185,109 @@ $("#booking-form").addEventListener("submit", (event) => {
   $("#confirmation").classList.remove("hidden");
   $("#confirmation").scrollIntoView({ behavior: "smooth" });
   window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-});
+}
+
+function paymentPayload() {
+  const lateTime = $("#late-time").value;
+  return {
+    date: $("#date").value,
+    entryTime: state.entry === "Después de las 12:00" ? lateTime : state.entry,
+    entryNeedsConfirmation: state.entry === "Después de las 12:00",
+    adults: state.adults,
+    children: state.children,
+    tent: state.tent,
+    gazebo: state.gazebo,
+    paellaType: state.paellaType,
+    paellaServings: state.paellaType === "none" ? 0 : state.paellaServings,
+    customer: {
+      name: `${$("#first-name").value.trim()} ${$("#last-name").value.trim()}`.trim(),
+      phone: $("#phone").value.trim(),
+      email: $("#email").value.trim(),
+      dietaryNotes: $("#additional-info").value.trim()
+    }
+  };
+}
+
+async function startCardPayment(event) {
+  event.preventDefault();
+  const error = $("#form-error");
+  const button = $("#card-payment-button");
+  error.classList.add("hidden");
+
+  if (people() < 1) {
+    error.textContent = "Indica al menos una persona.";
+    error.classList.remove("hidden");
+    return;
+  }
+  if (state.entry === "Después de las 12:00" && !$("#late-time").value) {
+    error.textContent = "Indica la hora de llegada que deseas solicitar.";
+    error.classList.remove("hidden");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Abriendo pago seguro…";
+  try {
+    const payload = paymentPayload();
+    const reservationResponse = await fetch(`${STRIPE_WORKER_URL}/reservations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const reservation = await reservationResponse.json();
+    if (!reservationResponse.ok || !reservation.reference) {
+      throw new Error(reservation.error || "No se pudo registrar la solicitud.");
+    }
+
+    const checkoutResponse = await fetch(`${STRIPE_WORKER_URL}/create-checkout-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, reference: reservation.reference })
+    });
+    const checkout = await checkoutResponse.json();
+    if (!checkoutResponse.ok || !checkout.url) {
+      throw new Error(checkout.error || "No se pudo abrir Stripe Checkout.");
+    }
+    window.location.assign(checkout.url);
+  } catch (cause) {
+    error.textContent = cause instanceof Error ? cause.message : "No se pudo abrir el pago seguro.";
+    error.classList.remove("hidden");
+    button.disabled = false;
+    button.textContent = "Pagar con tarjeta";
+  }
+}
+
+async function verifyReturnedPayment() {
+  const parameters = new URLSearchParams(window.location.search);
+  if (parameters.get("payment") !== "success") return;
+  const sessionId = parameters.get("session_id") || "";
+  const error = $("#form-error");
+  error.textContent = "Verificando el pago con Stripe…";
+  error.classList.remove("hidden");
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const response = await fetch(`${STRIPE_WORKER_URL}/checkout-session-status?session_id=${encodeURIComponent(sessionId)}`);
+      const result = await response.json();
+      if (response.ok && result.confirmed) {
+        $("#paid-reference-output").textContent = result.reference;
+        $("#payment-confirmation").classList.remove("hidden");
+        error.classList.add("hidden");
+        window.history.replaceState({}, "", `${window.location.pathname}#payment-confirmation`);
+        $("#payment-confirmation").scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+    } catch {
+      // A brief webhook delay or transient network error is retried below.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+
+  error.textContent = "Stripe ha devuelto el pago, pero la confirmación segura todavía está procesándose. Recarga esta página en unos segundos.";
+}
+
+$("#booking-form").addEventListener("submit", startCardPayment);
+$("#manual-transfer-button").addEventListener("click", prepareManualTransfer);
 
 render();
+verifyReturnedPayment();
