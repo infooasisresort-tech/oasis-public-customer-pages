@@ -7,6 +7,13 @@ const PAELLAS = {
 
 const STRIPE_WORKER_URL = "https://oasis-daypass-stripe-live.infooasisresort.workers.dev";
 
+const CAPACITY_GUARD = "or-reservas-read-v1";
+const REQUEST_TIMEOUT_MS = 10000;
+const AVAILABILITY_MAX_AGE_MS = 30000;
+const AVAILABILITY_CLOCK_SKEW_MS = 5000;
+const availability = { status: "unknown", selection: null, checkedAt: null, timer: null, version: 0, controller: null };
+const booking = { busy: false, attempt: null, frozenControls: [], verifyingReturn: false };
+
 const state = {
   adults: 2,
   children: 0,
@@ -22,6 +29,163 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 function people() {
   return state.adults + state.children;
+}
+
+function capacitySelection() {
+  return { date: $("#date").value, adults: state.adults, children: state.children };
+}
+
+function selectionKey(selection) {
+  return JSON.stringify(selection);
+}
+
+function validSelection(selection) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(selection.date)) return false;
+  const parsed = new Date(`${selection.date}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === selection.date
+    && selection.date >= $("#date").min
+    && Number.isSafeInteger(selection.adults) && selection.adults >= 0
+    && Number.isSafeInteger(selection.children) && selection.children >= 0
+    && Number.isSafeInteger(selection.adults + selection.children) && selection.adults + selection.children > 0;
+}
+
+function validIso(value) {
+  if (typeof value !== "string") return false;
+  const parts = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(value);
+  if (!parts || !Number.isFinite(Date.parse(value))) return false;
+  return new Date(`${parts[1]}T00:00:00Z`).toISOString().slice(0, 10) === parts[1]
+    && Number(parts[2]) < 24 && Number(parts[3]) < 60 && Number(parts[4]) < 60
+    && (!parts[5] || Number(parts[5]) < 24 && Number(parts[6]) < 60);
+}
+
+function bookingSignature(payload, paymentMethod) {
+  return JSON.stringify({ payload, paymentMethod, firstName: $("#first-name").value.trim(), lastName: $("#last-name").value.trim() });
+}
+
+function freshAvailability() {
+  return validIso(availability.checkedAt)
+    && Date.now() - Date.parse(availability.checkedAt) <= AVAILABILITY_MAX_AGE_MS
+    && Date.parse(availability.checkedAt) - Date.now() <= AVAILABILITY_CLOCK_SKEW_MS;
+}
+
+function updateBookingButtons() {
+  const ready = availability.status === "available" && availability.selection === selectionKey(capacitySelection()) && freshAvailability();
+  $("#card-payment-button").disabled = $("#manual-transfer-button").disabled = booking.busy || booking.verifyingReturn || !ready;
+}
+
+function availabilityMessage(status, message) {
+  availability.status = status;
+  $("#availability-status").textContent = message;
+  $("#availability-status").dataset.state = status;
+  $("#availability-retry").classList.toggle("hidden", !["error", "blocked", "stale"].includes(status));
+  $("#availability-retry").disabled = booking.busy || status === "checking";
+  if (status !== "available") hideManualConfirmation();
+  updateBookingButtons();
+}
+
+function hideManualConfirmation() {
+  $("#confirmation").classList.add("hidden");
+  $("#whatsapp-link").href = "#";
+  for (const id of ["#reference-output", "#payment-reference", "#payment-total"]) $(id).textContent = "";
+}
+
+function invalidateBooking() {
+  if (booking.busy) return;
+  if (booking.attempt && booking.attempt.signature !== bookingSignature(paymentPayload(), booking.attempt.paymentMethod)) {
+    booking.attempt = null;
+    hideManualConfirmation();
+  }
+  updateBookingButtons();
+}
+
+function showFormError(message) {
+  $("#form-error").textContent = message;
+  $("#form-error").classList.remove("hidden");
+}
+
+async function fetchJson(path, options = {}, controller = new AbortController()) {
+  let timeout;
+  try {
+    return await Promise.race([
+      (async () => {
+        const response = await fetch(`${STRIPE_WORKER_URL}${path}`, { ...options, signal: controller.signal, cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok) {
+          const failure = new Error("No se pudo verificar la disponibilidad.");
+          failure.status = response.status;
+          throw failure;
+        }
+        return result;
+      })(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(new Error("La comprobación ha tardado demasiado. Vuelve a intentarlo."));
+        }, REQUEST_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function checkAvailability() {
+  if (booking.busy) return;
+  const version = ++availability.version;
+  clearTimeout(availability.timer);
+  availability.checkedAt = null;
+  if (availability.controller) availability.controller.abort();
+  const controller = new AbortController();
+  availability.controller = controller;
+  const selection = capacitySelection();
+  const key = selectionKey(selection);
+  availability.selection = key;
+  if (!validSelection(selection)) {
+    availabilityMessage("unknown", "Selecciona una fecha y al menos una persona para comprobar las plazas.");
+    return;
+  }
+  availabilityMessage("checking", "Comprobando las plazas disponibles…");
+  try {
+    const parameters = new URLSearchParams(selection);
+    const result = await fetchJson(`/availability?${parameters}`, {}, controller);
+    if (version !== availability.version || key !== selectionKey(capacitySelection())) return;
+    if (!result || result.capacityGuard !== CAPACITY_GUARD
+      || result.date !== selection.date || result.adults !== selection.adults || result.children !== selection.children
+      || !Number.isSafeInteger(result.remaining) || result.remaining < 0 || !validIso(result.checkedAt)
+      || Date.now() - Date.parse(result.checkedAt) > AVAILABILITY_MAX_AGE_MS
+      || Date.parse(result.checkedAt) - Date.now() > AVAILABILITY_CLOCK_SKEW_MS
+      || typeof result.available !== "boolean" || result.available !== (result.remaining >= selection.adults + selection.children)) {
+      throw new Error("La disponibilidad no se ha podido verificar.");
+    }
+    availability.checkedAt = result.checkedAt;
+    availability.timer = setTimeout(() => {
+      if (version !== availability.version || key !== selectionKey(capacitySelection())) return;
+      availabilityMessage("stale", "La comprobación de plazas ha caducado. Vuelve a comprobarlas antes de preparar un nuevo pedido.");
+    }, Math.max(0, Date.parse(result.checkedAt) + AVAILABILITY_MAX_AGE_MS - Date.now() + 1));
+    availabilityMessage(result.available ? "available" : "blocked", result.available
+      ? "Hay plazas para vuestro grupo. Las comprobaremos de nuevo al preparar el pedido."
+      : `Máximo disponible para esta fecha: ${result.remaining} persona${result.remaining === 1 ? "" : "s"}. ${result.remaining === 0
+        ? "No quedan plazas Day Pass para esta fecha. Elige otra fecha."
+        : "No quedan plazas suficientes para vuestro grupo. Cambia la fecha o el número de personas."}`);
+  } catch {
+    if (version !== availability.version || key !== selectionKey(capacitySelection())) return;
+    availabilityMessage("error", "No podemos comprobar las plazas ahora. El pedido y el pago están bloqueados. Vuelve a intentarlo.");
+  }
+}
+
+function freezeBooking(busy) {
+  booking.busy = busy;
+  if (busy) {
+    booking.frozenControls = $$("#booking-form input, #booking-form textarea, #booking-form button")
+      .map((control) => ({ control, disabled: control.disabled }));
+    booking.frozenControls.forEach(({ control }) => { control.disabled = true; });
+  } else {
+    booking.frozenControls.forEach(({ control, disabled }) => { control.disabled = disabled; });
+    booking.frozenControls = [];
+  }
+  $("#booking-form").setAttribute("aria-busy", String(busy));
+  $("#availability-retry").disabled = busy;
+  updateBookingButtons();
 }
 
 function totals() {
@@ -57,6 +221,7 @@ function render() {
   if (selected) rows += row(`${selected.name} · ${state.paellaServings} raciones`, `${amount.paella} €`, true);
   $("#summary-rows").innerHTML = rows;
   $("#total-output").textContent = `${amount.total} €`;
+  invalidateBooking();
 }
 
 function normalizePaellaServings() {
@@ -64,18 +229,12 @@ function normalizePaellaServings() {
 }
 
 function changeCounter(name, step) {
+  if (booking.busy) return;
   const minimum = name === "paellaServings" ? 4 : 0;
   state[name] = Math.max(minimum, state[name] + step);
   if (name !== "paellaServings") normalizePaellaServings();
   render();
-}
-
-function makeReference() {
-  const now = new Date();
-  const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-  const random = new Uint32Array(1);
-  crypto.getRandomValues(random);
-  return `DP-${date}-${String(random[0] % 10000).padStart(4, "0")}`;
+  if (name !== "paellaServings") checkAvailability();
 }
 
 $$("[data-counter] button").forEach((button) => {
@@ -84,7 +243,9 @@ $$("[data-counter] button").forEach((button) => {
 
 $$("[data-entry]").forEach((button) => {
   button.addEventListener("click", () => {
+    if (booking.busy) return;
     state.entry = button.dataset.entry;
+    invalidateBooking();
     $$("[data-entry]").forEach((item) => item.classList.toggle("selected", item === button));
     $("#late-time-wrap").classList.toggle("hidden", state.entry !== "Después de las 12:00");
   });
@@ -92,6 +253,7 @@ $$("[data-entry]").forEach((button) => {
 
 $$("[data-tent]").forEach((button) => {
   button.addEventListener("click", () => {
+    if (booking.busy) return;
     state.tent = button.dataset.tent;
     $$("[data-tent]").forEach((item) => {
       const selected = item === button;
@@ -103,11 +265,13 @@ $$("[data-tent]").forEach((button) => {
 });
 
 $("#gazebo").addEventListener("change", (event) => {
+  if (booking.busy) return;
   state.gazebo = event.target.checked;
   render();
 });
 
 $("#paella-toggle").addEventListener("click", () => {
+  if (booking.busy) return;
   const adding = state.paellaType === "none";
   state.paellaType = adding ? "valenciana" : "none";
   normalizePaellaServings();
@@ -119,6 +283,7 @@ $("#paella-toggle").addEventListener("click", () => {
 
 $$("[data-paella]").forEach((button) => {
   button.addEventListener("click", () => {
+    if (booking.busy) return;
     state.paellaType = button.dataset.paella;
     $$("[data-paella]").forEach((item) => {
       const selected = item === button;
@@ -131,25 +296,8 @@ $$("[data-paella]").forEach((button) => {
 
 $("#date").min = new Date().toISOString().slice(0, 10);
 
-function prepareManualTransfer(event) {
-  event.preventDefault();
-  if (!$("#booking-form").reportValidity()) return;
-  const error = $("#form-error");
-  error.classList.add("hidden");
-
-  if (people() < 1) {
-    error.textContent = "Indica al menos una persona.";
-    error.classList.remove("hidden");
-    return;
-  }
+function showManualTransfer(reference) {
   const lateTime = $("#late-time").value;
-  if (state.entry === "Después de las 12:00" && !lateTime) {
-    error.textContent = "Indica la hora de llegada que deseas solicitar.";
-    error.classList.remove("hidden");
-    return;
-  }
-
-  const reference = makeReference();
   const selected = PAELLAS[state.paellaType];
   const amount = totals();
   const entryTime = state.entry === "Después de las 12:00" ? lateTime : state.entry;
@@ -208,86 +356,129 @@ function paymentPayload() {
   };
 }
 
-async function startCardPayment(event) {
+async function startCardPayment(event) { return submitBooking(event, "card"); }
+async function prepareManualTransfer(event) { return submitBooking(event, "transfer"); }
+
+async function submitBooking(event, paymentMethod) {
   event.preventDefault();
-  const error = $("#form-error");
-  const button = $("#card-payment-button");
-  error.classList.add("hidden");
-
-  if (people() < 1) {
-    error.textContent = "Indica al menos una persona.";
-    error.classList.remove("hidden");
-    return;
-  }
+  if (booking.busy || booking.verifyingReturn || !$("#booking-form").reportValidity()) return;
+  if (!validSelection(capacitySelection())) { showFormError("Indica una fecha válida y al menos una persona."); return; }
   if (state.entry === "Después de las 12:00" && !$("#late-time").value) {
-    error.textContent = "Indica la hora de llegada que deseas solicitar.";
-    error.classList.remove("hidden");
-    return;
+    showFormError("Indica la hora de llegada que deseas solicitar."); return;
   }
-
-  button.disabled = true;
-  button.textContent = "Abriendo pago seguro…";
+  if (availability.status !== "available" || availability.selection !== selectionKey(capacitySelection()) || !freshAvailability()) {
+    showFormError("Comprueba las plazas disponibles antes de preparar el pedido."); return;
+  }
+  $("#form-error").classList.add("hidden");
+  hideManualConfirmation();
+  const payload = paymentPayload();
+  const signature = bookingSignature(payload, paymentMethod);
+  const button = $(paymentMethod === "card" ? "#card-payment-button" : "#manual-transfer-button");
+  const originalText = button.textContent;
+  freezeBooking(true);
+  button.textContent = paymentMethod === "card" ? "Abriendo pago seguro." : "Verificando las plazas.";
   try {
-    const payload = paymentPayload();
-    const reservationResponse = await fetch(`${STRIPE_WORKER_URL}/reservations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const reservation = await reservationResponse.json();
-    if (!reservationResponse.ok || !reservation.reference) {
-      throw new Error(reservation.error || "No se pudo registrar la solicitud.");
+    if (!booking.attempt || booking.attempt.signature !== signature) {
+      booking.attempt = { signature, paymentMethod, idempotencyKey: crypto.randomUUID() };
     }
-
-    const checkoutResponse = await fetch(`${STRIPE_WORKER_URL}/create-checkout-session`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, reference: reservation.reference })
-    });
-    const checkout = await checkoutResponse.json();
-    if (!checkoutResponse.ok || !checkout.url) {
-      throw new Error(checkout.error || "No se pudo abrir Stripe Checkout.");
+    const attempt = booking.attempt;
+    const body = { ...payload, paymentMethod, idempotencyKey: attempt.idempotencyKey };
+    if (paymentMethod === "transfer" || !attempt.reference) {
+      const reservation = await fetchJson("/reservations", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      });
+      if (!reservation || reservation.capacityGuard !== CAPACITY_GUARD || typeof reservation.reference !== "string" || !reservation.reference.trim()
+        || attempt.reference && attempt.reference !== reservation.reference) {
+        throw new Error("No se ha podido verificar el pedido. El pago está bloqueado.");
+      }
+      attempt.reference = reservation.reference;
     }
-    window.location.assign(checkout.url);
+    if (signature !== bookingSignature(paymentPayload(), paymentMethod)) throw new Error("La selección ha cambiado.");
+    if (paymentMethod === "transfer") {
+      if (availability.status !== "available" || !freshAvailability()) throw new Error("Vuelve a comprobar las plazas.");
+      showManualTransfer(attempt.reference);
+      return;
+    }
+    const checkout = await fetchJson("/create-checkout-session", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, reference: attempt.reference })
+    });
+    let checkoutUrl;
+    try { checkoutUrl = new URL(checkout.url); } catch { /* Invalid URL is blocked below. */ }
+    if (!checkout || checkout.capacityGuard !== CAPACITY_GUARD || !checkoutUrl
+      || checkoutUrl.protocol !== "https:" || checkoutUrl.hostname !== "checkout.stripe.com"
+      || checkoutUrl.username || checkoutUrl.password || checkoutUrl.port
+      || signature !== bookingSignature(paymentPayload(), paymentMethod)) throw new Error("No se ha podido verificar el cobro.");
+    window.location.assign(checkoutUrl.href);
   } catch (cause) {
-    error.textContent = cause instanceof Error ? cause.message : "No se pudo abrir el pago seguro.";
-    error.classList.remove("hidden");
-    button.disabled = false;
-    button.textContent = "Pagar con tarjeta";
+    const unavailable = cause && cause.status === 409;
+    availabilityMessage(unavailable ? "blocked" : "error", unavailable
+      ? "Las plazas han cambiado y no hay plazas suficientes para continuar. Vuelve a comprobarlas."
+      : "No podemos verificar el pedido ahora. El pago está bloqueado. Vuelve a comprobar las plazas.");
+    showFormError("No se ha abierto el cobro ni preparado una transferencia. Si la conexión falló, conserva los mismos datos al reintentar.");
+  } finally {
+    button.textContent = originalText;
+    freezeBooking(false);
   }
 }
 
 async function verifyReturnedPayment() {
   const parameters = new URLSearchParams(window.location.search);
+  if (parameters.get("payment") === "cancel") {
+    showFormError("Has vuelto del pago sin confirmación. Comprueba las plazas antes de reintentarlo."); return;
+  }
   if (parameters.get("payment") !== "success") return;
+  booking.verifyingReturn = true;
+  updateBookingButtons();
   const sessionId = parameters.get("session_id") || "";
-  const error = $("#form-error");
-  error.textContent = "Verificando el pago con Stripe…";
-  error.classList.remove("hidden");
-
+  showFormError("Verificando el pago con Stripe.");
+  if (!sessionId) { showFormError("No podemos verificar este pago. No repitas el pago; consulta su estado con El Oasis."); return; }
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
-      const response = await fetch(`${STRIPE_WORKER_URL}/checkout-session-status?session_id=${encodeURIComponent(sessionId)}`);
-      const result = await response.json();
-      if (response.ok && result.confirmed) {
+      const result = await fetchJson(`/checkout-session-status?session_id=${encodeURIComponent(sessionId)}`);
+      if (result && ["expired", "cancelled", "canceled"].includes(result.status)) {
+        showFormError("No hay confirmación de este pago. Si has pagado, consulta su estado con El Oasis antes de reintentarlo."); return;
+      }
+      if (result && result.confirmed === true && typeof result.reference === "string" && result.reference.trim()
+        && (result.status === undefined || ["paid", "confirmed", "complete", "completed"].includes(result.status))) {
         $("#paid-reference-output").textContent = result.reference;
         $("#payment-confirmation").classList.remove("hidden");
-        error.classList.add("hidden");
+        $("#form-error").classList.add("hidden");
+        booking.verifyingReturn = false;
+        booking.attempt = null;
+        hideManualConfirmation();
+        updateBookingButtons();
         window.history.replaceState({}, "", `${window.location.pathname}#payment-confirmation`);
         $("#payment-confirmation").scrollIntoView({ behavior: "smooth" });
         return;
       }
-    } catch {
-      // A brief webhook delay or transient network error is retried below.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    } catch { /* Only read-only payment verification is retried. */ }
+    if (attempt < 7) await new Promise((resolve) => setTimeout(resolve, 1200));
   }
-
-  error.textContent = "Stripe ha devuelto el pago, pero la confirmación segura todavía está procesándose. Recarga esta página en unos segundos.";
+  showFormError("La confirmación del pago todavía se está procesando. No repitas el pago. Recarga esta página en unos segundos.");
 }
 
 $("#booking-form").addEventListener("submit", startCardPayment);
 $("#manual-transfer-button").addEventListener("click", prepareManualTransfer);
-
+function dateChanged() {
+  if (booking.busy) return;
+  invalidateBooking();
+  if (availability.selection !== selectionKey(capacitySelection()) || availability.status === "unknown") return checkAvailability();
+}
+$("#date").addEventListener("input", dateChanged);
+$("#date").addEventListener("change", dateChanged);
+for (const id of ["#late-time", "#first-name", "#last-name", "#phone", "#email", "#additional-info"]) {
+  $(id).addEventListener("input", invalidateBooking);
+  $(id).addEventListener("change", invalidateBooking);
+}
+$("#availability-retry").addEventListener("click", checkAvailability);
+$("#whatsapp-link").addEventListener("click", (event) => {
+  const attempt = booking.attempt;
+  if (!attempt || attempt.paymentMethod !== "transfer" || attempt.signature !== bookingSignature(paymentPayload(), "transfer")
+    || availability.status !== "available" || !freshAvailability()) {
+    event.preventDefault(); hideManualConfirmation(); showFormError("Comprueba las plazas antes de preparar la transferencia.");
+  }
+});
 render();
+checkAvailability();
 verifyReturnedPayment();

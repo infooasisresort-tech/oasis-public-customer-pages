@@ -85,6 +85,10 @@
 
           <fieldset>
             <legend><b>2</b> Personas</legend>
+            <div class="availability-panel" aria-live="polite" aria-atomic="true">
+              <p id="availability-status" role="status" data-state="unknown">Selecciona una fecha y al menos una persona para comprobar las plazas.</p>
+              <button id="availability-retry" class="availability-retry hidden" type="button">Volver a comprobar plazas</button>
+            </div>
             <div class="counter-row">
               <div><strong>Adultos</strong><span>29 € acceso + 10 € CESTA</span></div>
               <div class="counter" data-counter="adults">
@@ -176,8 +180,8 @@
           <div id="summary-rows"></div>
           <div class="summary-total"><span>Total calculado</span><strong id="total-output">78 €</strong></div>
           <p class="summary-note">Las paellas se calculan con un mínimo de 4 raciones y deben solicitarse con 24 horas de antelación.</p>
-          <button class="reserve-button" id="card-payment-button" type="submit">Pagar con tarjeta</button>
-          <button class="manual-transfer-button" id="manual-transfer-button" type="button">Usar transferencia y WhatsApp</button>
+          <button class="reserve-button" id="card-payment-button" type="submit" disabled aria-describedby="availability-status">Pagar con tarjeta</button>
+          <button class="manual-transfer-button" id="manual-transfer-button" type="button" disabled aria-describedby="availability-status">Usar transferencia y WhatsApp</button>
           <p class="secure-payment-note">Pago seguro procesado por Stripe.</p>
           <a class="rules" href="https://bit.ly/normasInternaDaypass" target="_blank" rel="noreferrer">Consultar normas internas</a>
         </aside>
@@ -208,7 +212,7 @@
         <span>✓</span>
         <div>
           <p class="eyebrow">Pago confirmado</p>
-          <h2>Tu reserva está pagada y confirmada.</h2>
+          <h2>Tu pago con tarjeta está confirmado.</h2>
           <p>Referencia <strong id="paid-reference-output"></strong>. Stripe ha confirmado el pago con tarjeta y El Oasis ha registrado el importe recibido.</p>
         </div>
       </section>
